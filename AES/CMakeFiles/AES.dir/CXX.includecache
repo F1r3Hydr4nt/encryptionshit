@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/HON3D/encryptionshit/AES/AES.h
+cstring
+-
+
+/Users/HON3D/encryptionshit/AES/main.cpp
+iostream
+-
+AES.h
+/Users/HON3D/encryptionshit/AES/AES.h
+cassert
+-
+cstring
+-
+string
+-
+sstream
+-
+vector
+-
+iomanip
+-
+
