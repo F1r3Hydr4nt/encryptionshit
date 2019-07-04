@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html><head><title>Ray's Notebook: GnuPG S2K</title><meta http-equiv="Content-Type" content="text/html;charset=utf-8"/><link rel="canonical" href="http://archive.today/kKtf9"/></head><body style="margin:0;background-color:white;width:1024px"><div class="html1" style="width: 1024px;text-align: left;overflow-x: auto;overflow-y: auto; background-color: rgb(255, 255, 255);position: relative;min-height: 8604px;; z-index: 0"><div class="html" style="text-align:left;font-size:100%;vertical-align:baseline;overflow-x:visible;overflow-y:visible;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+
+<link rel="icon" href="2ae2868c55a71ff2657146f863c74bd346839652.ico">
+
+
+
+
+
+<div class="body" style="min-height:8591px;text-align:left;font-size:100%;vertical-align:baseline;color:black;line-height:1.2;font-family:serif;overflow-x:visible;overflow-y:visible;border-width: 0px; border-style: none; margin: 2px 6px 0px; padding: 0px; border-color: white; ">
+
+<header style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: medium 0px; border-style: double none; margin: 2px 0px 5px; padding: 1ex 0px; border-color: navy white; ">
+<nav style="text-align:left;font-size:100%;vertical-align:baseline;display:inline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><span style="vertical-align:-100%;"><img src="9eccf6e2583d05fefc2f441aaf781413fec52b0c.png"></span>
+<a href="http://archive.today/o/kKtf9/https://rays-notebook.info/home.html" title="Return to Notebook home" style="text-align:left;font-size:100%;vertical-align:baseline;color:navy;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Ray's Notebook</a>
+<a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/home.html" title="Return to Computing home" style="text-align:left;font-size:100%;vertical-align:baseline;color:navy;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><span style=""> § </span>Computing</a>
+</nav>
+</header>
+
+<h1 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:150%;counter-reset:h3 0;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><span style="margin-left:3px;vertical-align:-50%;"><img src="7d8a2b870797971de7e910ace6a0622d70f53265.png">,  </span>GnuPG String to Key (S2K)</h1>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+To derive a symmetric key from a passphrase, OpenPGP uses a homespun key-derivation function called <a href="http://archive.today/o/kKtf9/https://tools.ietf.org/html/rfc4880%23section-3.7" title="RFC 4880: OpenPGP §3.7" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">String-to-Key</span></a>, typically abbreviated as
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">S2K</span>. This transformation comes in three variations:
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Simple S2K</span>,
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Salted S2K</span>,
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Iterated and Salted S2K</span>. All three variants work by hashing a string based on a bespoke passphrase to form the session key, and they do so applying the hash function in the same manner. They differ in how they concoct their input strings for hashing. Simple S2K accepts the passphrase as-is. Salted S2K prepends a
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">salt</span>
+to the passphrase—eight randomly-generated octets. Iterated and Salted S2K likewise salts the passphrase. In addition, it successively repeats the salt-passphrase pair to build an input string of a specified length; so this duo is what gets iterated. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+The combination of encryption and hash algorithms determines how S2K forms key bits from hash bits—regardless of the variant's input string. What matters is the relationship of key size to hash size, and there are three cases to handle: (1) Hash length and key length coincide: The input string is hashed once and the output becomes the session key, bit for bit. (2) Hash length exceeds key length: The input string is hashed once and its output is truncated to the key length. (3) Hash length falls short of key length: The input string is hashed two or more times. Each additional round extends the input string by a counter of sorts before hashing. The multiple hash values are concatenated up to the key length. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+The following sections demonstrate the S2K in its three variations. In practice, however, only Iterated and Salted S2K is used. <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+defaults to this, and its manual disparages the other two variants. Nevertheless, Simple S2K and Salted S2K are handy stepping stones for illustrating Iterated and Salted S2K. </div>
+<ul style="text-align:left;font-size:100%;vertical-align:baseline;display:block;list-style: disc outside none; border-width: 0px; border-style: none; margin: 1em 2.5em; padding: 0px; border-color: white; ">
+<li style="text-align:left;font-size:100%;vertical-align:baseline;display:block;border-width: 0px; border-style: none; margin: 0px 0.3em 0.25em 0px; padding: 0px; border-color: white; "><span style="padding-right:2px;">§</span><a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/crypto-gnupg-s2k.html%23simple" style="text-align:left;font-size:100%;vertical-align:baseline;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Simple S2K</a></li>
+<li style="text-align:left;font-size:100%;vertical-align:baseline;display:block;border-width: 0px; border-style: none; margin: 0px 0.3em 0.25em 0px; padding: 0px; border-color: white; "><span style="padding-right:2px;">§</span><a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/crypto-gnupg-s2k.html%23salted" style="text-align:left;font-size:100%;vertical-align:baseline;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Salted S2K</a></li>
+<li style="text-align:left;font-size:100%;vertical-align:baseline;display:block;border-width: 0px; border-style: none; margin: 0px 0.3em 0.25em 0px; padding: 0px; border-color: white; "><span style="padding-right:2px;">§</span><a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/crypto-gnupg-s2k.html%23itersalted" style="text-align:left;font-size:100%;vertical-align:baseline;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Iterated and Salted S2K</a></li>
+</ul>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+S2K defaults to SHA-1 for its hasher. Use option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-digest-algo</span>
+to choose a different hash function from the supported offerings. (Not to be confused with <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--digest-algo</span>, for signing.)
+</div>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+OpenPGP uses the term <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">octet</span>
+rather than <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">byte</span>, and these notes follow suit. These notes likewise adopt the term
+<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">quartet</span>
+to mean four bits, rather than <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">nybble</span>. It's a convenient abbreviation because
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+reports keys and hashes as streams of hex digits, hence quartets, and referring to these simplifies some bookkeeping. GnuPG refers to S2K variants as <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">modes</span>, and option
+<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-mode</span>
+selects the mode. OpenPGP says <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">specifier type</span>. Neither supports alternative key-derivation functions. (But see
+<a href="http://archive.today/o/kKtf9/https://wiki.gnupg.org/rfc4880bis" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">RFC 4880bis</a>. GnuPG's underlying
+<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">libgcrypt</span>
+supports PBKDF2 and SCRYPT, too.) GnuPG uses the term <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">mangling</span>
+for both augmenting the passphrase and hashing the resultant string. OpenPGP uses the term <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">context</span>
+where these notes use <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">round</span>.
+</div>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+These notes are informed by the <a href="http://archive.today/o/kKtf9/https://tools.ietf.org/html/rfc4880%23section-3.7" title="RFC 4880: OpenPGP §3.7" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+description of S2K in RFC 4880</a>
+and the implementation of S2K in <a href="http://archive.today/o/kKtf9/https://www.gnupg.org/software/libgcrypt/index.html" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">libgcrypt</span></a>
+(function <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">openpgp_s2k</span>
+in file <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">cipher/kdf.c</span>). These Stack Exchange articles are also informative:
+<a href="http://archive.today/o/kKtf9/https://crypto.stackexchange.com/questions/48906/what-exactly-does-s2k-do-in-gpg" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><cite style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">What exactly does s2k do in gpg?</cite></a>
+<a href="http://archive.today/o/kKtf9/https://crypto.stackexchange.com/questions/12321/what-is-the-gnupg-process-for-going-from-a-passphrase-to-a-symmetric-key/12355" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><cite style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">What is the GnuPG process for going from a passphrase to a symmetric key?</cite></a>
+</div>
+
+
+<section style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+<h2 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:125%;counter-reset:h3 0;border-width: thin 0px 0px; border-style: solid none none; margin: 1em 0px; padding: 2px 0px 0px; border-color: rgb(102, 153, 170) white white; ">Simple S2K<span style="float:right;font-size:14.4px;font-weight:normal;margin:0.3em 0px 0px"></span></h2>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+This section demonstrates Simple S2K for three combinations of encryption and hash algorithms: hash length and key length coincide, hash length exceeds key length, and hash length falls short of key length. Option "<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-mode 0</span>" tells
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+to use Simple S2K. The passphrase is just "abc" for convenience. </div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length And Key Length Coincide</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+When the hash length and key length coincide, Simple S2K hashes the passphrase without adjustment and takes the entire output as the session key. For example, the 256-bit hash from SHA-256 serves as-is for an AES-256 session key: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 0 --cipher-algo AES256 --s2k-digest SHA256 --symmetric hello.txt
+gpg: Note: simple S2K mode (0) is strongly discouraged
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+With option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--show-session-key</span>,
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+reports the 256-bit session key in 64 hex digits; it prompts for the passphrase: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --show-session-key --decrypt hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '9:BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD'</strong>
+Hello there, world.
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The prefix "9:" is not part of the key proper. Rather, it's a bookkeeping shortcut that <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+uses to record the encryption algorithm associated with the key. And this key is easily seen to be the SHA-256 hash of passphrase "abc": </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n "abc" | sha256sum | tr a-f A-F
+BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+That's all there is to Simple S2K when key size and hash size are equal. </div>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+The tail pipe into <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">tr</span>
+translates lower-case hex digits into upper case to ease comparison with that format from <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--show-session-key</span>; it's not necessary.
+</div>
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+Activating option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">-n</span>
+with <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">echo</span>
+is crucial to prevent adding a newline to the string handed to SHA-256. For example: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo "abc" | sha256sum
+edeaaff3f1774ad2888673770c6d64097e391bc362d7d6fb34982ddf0efd18cb  -
+-&#62; echo -n -e "abc\n" | sha256sum
+edeaaff3f1774ad2888673770c6d64097e391bc362d7d6fb34982ddf0efd18cb  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Either way, the hasher gets the same input, and that input has a newline character as its fourth byte. </div>
+</div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length Exceeds Key Length</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+When the hash length exceeds the key length, Simple S2K takes as many bits as needed from the hash value and drops the supernumerary bits. Retention starts with the higher-order bits. For example, under the default combination of AES-128 and SHA-1, the session key coincides with the first 128 bits of the hash's 160 bits: </div><pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 0 --symmetric hello.txt
+gpg: Note: simple S2K mode (0) is strongly discouraged
+-&#62; gpg2 --homedir alice --quiet --show-session-key --decrypt hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '7:A9993E364706816ABA3E25717850C26C'</strong>
+Hello there, world.
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Here is the hash of passphrase under SHA-1: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n "abc" | sha1sum | tr a-f A-F
+A9993E364706816ABA3E25717850C26C9CD0D89D  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+These 40 hex digits represent the 160 bits of the SHA-1 hash in quartets. The AES-128 session key needs only the first 32 quartets for its 128 bits: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%.32s\n" A9993E364706816ABA3E25717850C26C9CD0D89D
+A9993E364706816ABA3E25717850C26C
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The hash's low-order 8 quartets (<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">9CD0D89D</span>) are nonchalantly tossed to the wind.
+</div>
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+GnuPG offers other hash algorithms, which can be used instead of SHA-1 for computing a session key: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --version | grep Hash
+Hash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+All of these produce more than 128 bits, so the above analysis for an AES-128 session key applies to all supported hashes. But there's a second round of hashing when determining an AES-256 session key of 256 bits with hashing courtesy of SHA-1, RIPEMD160, or SHA224. </div>
+</div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length Falls Short Of Key Length</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+With encryption under AES-256, for example, the 160 bits from SHA-1 fall short of the required 256 bits by 96 bits. To make up the difference, S2K continues to second round of hashing. It concatenates all 160 bits from the first round and the high-order 96 bits from the second round to form the 256 bits of the session key. </div><pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 0 --cipher-algo AES256 --symmetric hello.txt
+gpg: Note: simple S2K mode (0) is strongly discouraged
+-&#62; gpg2 --homedir alice --quiet --show-session-key --decrypt hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '9:A9993E364706816ABA3E25717850C26C9CD0D89DDD3742EC1A4D2A5B563A2B62'</strong>
+Hello there, world.
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+The first round hashes the passphrase, as in the previous example: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e "abc" |  sha1sum | tr a-f A-F
+A9993E364706816ABA3E25717850C26C9CD0D89D  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+This hash provide the first 40 quartets in the session key above. The input strings for the first and second rounds must differ from each other so that SHA-1 outputs different values for each round. One octet does the trick, and the second round simply prepends the zero octet to the passphrase: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e "\x00abc" | sha1sum | tr a-z A-Z
+DD3742EC1A4D2A5B563A2B62AEF7FC4A46FA6CCA  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Only the first 24 quartets are needed: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%.24s\n" DD3742EC1A4D2A5B563A2B62AEF7FC4A46FA6CCA
+DD3742EC1A4D2A5B563A2B62
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+These two strings of 40 and 24 quartets are joined to form the session key of 64 quartets: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">A9993E364706816ABA3E25717850C26C9CD0D89DDD3742EC1A4D2A5B563A2B62
+⎣		round 1                ⎦⎣        round 2       ⎦
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+This eyesore matches the 64-quartet session key from <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>, above, and thus transmogrifies into a sight for sore eyes.
+</div>
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+If twice the hash size falls short of the key size, then S2K soldiers on. In the third round, two zero octets are prepended to the passphrase for hashing fodder: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e "\x00\x00abc" | hexdump --canonical
+00000000  00 00 61 62 63                                    |..abc|
+00000005
+-&#62; echo -n -e "\x00\x00abc" | sha1sum
+fd40b6335c6954332c0f9690cfffaed944c5393c  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+This hash would then be appended to the first and second hashes, wholly or partially. And so on. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+But that's not going to happen with the current encryption and hash algorithms that GnuPG supports: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --version
+gpg (GnuPG) 2.2.6
+libgcrypt 1.8.2
+⋮
+Cipher: IDEA, 3DES, CAST5, BLOWFISH, AES, AES192, AES256, TWOFISH,
+        CAMELLIA128, CAMELLIA192, CAMELLIA256
+Hash: SHA1, RIPEMD160, SHA256, SHA384, SHA512, SHA224
+⋮
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The minimum hash size is 160 bits, the maximum key size is 256 bits, and twice 160 exceeds 256. So one or two rounds will suffice. </div>
+</div>
+</section>
+
+
+<section style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+<h2 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:125%;counter-reset:h3 0;border-width: thin 0px 0px; border-style: solid none none; margin: 1em 0px; padding: 2px 0px 0px; border-color: rgb(102, 153, 170) white white; ">Salted S2K<span style="float:right;font-size:14.4px;font-weight:normal;margin:0.3em 0px 0px"></span></h2>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+This section demonstrates Salted S2K for two cases, first when the hash length suffices for the key length, and second when the hash length falls short of the key length. This variant concatenates the salt and the passphrase to form the input string for the hasher. It otherwise proceeds as does Simple S2K. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+Option "<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-mode 1</span>" tells
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+to use Salted S2K. The passphrase is "abc". </div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length Suffices for Key Length</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+This example combines AES-128 and SHA-1, the default pairing. The first 128 bits of the hash's 160 bits become the session key. </div><pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 1 --symmetric hello.txt
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+randomly generate a salt of 8 octets and stores it in the Symmetric-Key Encrypted Session Key Packet. The salt is stored as cleartext and is available for inspection by <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">pgpdump</span>
+and by <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+with command option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--list-packets</span>:
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; pgpdump hello.txt.gpg 
+Old: Symmetric-Key Encrypted Session Key Packet(tag 3)(12 bytes)
+	New version(4)
+	Sym alg - AES with 128-bit key(sym 7)
+	Salted string-to-key(s2k 1):
+		Hash alg - SHA1(hash 2)
+                <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Salt - a1 ae 21 26 fc bf b8 1a</strong>
+⋮
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The salt's 8 octets are shown in 8 pairs of hexadecimal digits. <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">pgpdump</span>
+cannot access the encrypted session key, however. Instead: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --show-session-key --list-packets hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '7:9004AE57B0260E6EE233207383E735B8'</strong>
+# off=0 ctb=8c tag=3 hlen=2 plen=12
+:symkey enc packet: version 4, cipher 7, s2k 1, hash 2
+	<strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">salt A1AE2126FCBFB81A</strong>
+⋮
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+The salt and the passphrase are joined together to make the input string for SHA-1. It's convenient to put these principal parts into Bash variables <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$passphrase</var>,
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$salt</var>, and
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+(because the salt changes with each encryption): </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; passphrase='abc'
+-&#62; salt='\xA1\xAE\x21\x26\xFC\xBF\xB8\x1A'
+-&#62; input="$salt$passphrase"
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+A quick sanity check confirms that <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+has the expected 11 bytes (8+3): </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e $input | wc --bytes
+11
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Echoing <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+tends to produce gibberish because the salt is not likely to be printable, even if a few grains happen to fall on printable characters. For a solid sanity check, direct examination of <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+byte-by-byte shows that this string was constructed as intended: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e $input | hexdump --canonical
+00000000  a1 ae 21 26 fc bf b8 1a  61 62 63                 |..!&#38;....abc|
+0000000b
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Alternatively: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; "> -&#62; echo -n -e $input | od --address-radix x --format x1z
+000000 a1 ae 21 26 fc bf b8 1a 61 62 63                 &#62;..!&#38;....abc&#60;
+00000b
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Thus the 11-octet (<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">0x0b</span>) string in
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+concatenates the 8-octet salt and 3-octet passphrase; no more, no less. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+It's now a simple exercise to show that <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+is indeed the string input to SHA-1 to produce the session key, above: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e $input | sha1sum | tr a-f A-F
+9004AE57B0260E6EE233207383E735B87EA7B5EA  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The first 32 quartets or 128 bits of this hash value match the session key: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%.32s\n" 9004AE57B0260E6EE233207383E735B87EA7B5EA
+9004AE57B0260E6EE233207383E735B8
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+And that's Salted S2K in a nutshell. </div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length Falls Short of Key Length</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+When the hash does not pony up enough bits for the session key, S2K continues to a second round. This example uses AES-256 for encryption while retaining SHA-1 for hashing: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 1 --cipher-algo AES-256 --symmetric hello.txt
+-&#62; gpg2 --homedir alice --quiet --show-session-key --list-packets hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '9:729D52732A6C8A49C6800B7F3F59AA42CCBF30D9CDD64B452EAE90E3F1A4E6BE'</strong>
+# off=0 ctb=8c tag=3 hlen=2 plen=12
+:symkey enc packet: version 4, cipher 9, s2k 1, hash 2
+	<strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">salt 8DDC0B3A3513BB74</strong>
+⋮
+-&#62; passphrase='abc'
+-&#62; salt='\x8D\xDC\x0B\x3A\x35\x13\xBB\x74'
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+The first round hashes the salted passphrase and keeps all 160 bits: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; input1="$salt$passphrase"
+-&#62; echo -n -e $input1 | hexdump  --canonical
+00000000  8d dc 0b 3a 35 13 bb 74  61 62 63                 |...:5..tabc|
+0000000b
+-&#62; echo -n -e $input1 | sha1sum | tr a-f A-F
+729D52732A6C8A49C6800B7F3F59AA42CCBF30D9  -
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The second round prepends the zero octet to the salted passphrase: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; input2="\x00$salt$passphrase"
+-&#62; echo -n -e $input2 | hexdump --canonical
+00000000  00 8d dc 0b 3a 35 13 bb  74 61 62 63              |....:5..tabc|
+0000000c
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+It hashes this 12-octet (<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">0x0c</span>) string but keeps only the first 24 quartets (94 bits):
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%.24s\n" "$(echo -n -e $input2 | sha1sum | tr a-f A-F)"
+CDD64B452EAE90E3F1A4E6BE
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Finally, the 40 quartets of the first round and the 24 quartets of the second round are joined together: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">729D52732A6C8A49C6800B7F3F59AA42CCBF30D9CDD64B452EAE90E3F1A4E6BE
+⎣		round 1                ⎦⎣        round 2       ⎦
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+QED: This monstrosity in 64 quartets matches the session key from <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>, above.
+</div>
+</section>
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+The preceding example invokes Bash's quoted command-substitution to supply the arguments for <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>; i.e.,
+<code style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">"$(…)"</code>
+in the following: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%.24s\n" "$(echo -n -e $input2 | sha1sum | tr a-f A-F)"
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Bash executes the enclosed command pipeline and passes the results to <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+to format and print. The surrounding quotation marks tell Bash to pass the results as a single string. Without them, Bash would split the results into separate strings wherever it finds a space, tab, or newline (by default). For comparison: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%s\n" "$(echo -n -e $input2 | sha1sum | tr a-f A-F)"
+CDD64B452EAE90E3F1A4E6BE3301627F9F4ECC5F  -
+-&#62; printf "%s\n" $(echo -n -e $input2 | sha1sum | tr a-f A-F)
+CDD64B452EAE90E3F1A4E6BE3301627F9F4ECC5F
+-
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+In the first case, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+sees a single string consisting of the hash and trailing hyphen separated by a space. In the second case, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+sees two strings, the hash first and a lone hyphen second. </div>
+</div>
+
+
+<section style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+<h2 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:125%;counter-reset:h3 0;border-width: thin 0px 0px; border-style: solid none none; margin: 1em 0px; padding: 2px 0px 0px; border-color: rgb(102, 153, 170) white white; ">Iterated and Salted S2K<span style="float:right;font-size:14.4px;font-weight:normal;margin:0.3em 0px 0px"></span></h2>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+For a typical user-composed passphrase, the input strings of Simple S2K and Salted S2K lack heft; the hasher can quickly digest its short input. To increase the computational burden on a brute-force attack, Iterated and Salted S2K repeats the salt-passphrase duo. The input string looks like this, loosely: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">salt+passpprase+salt+passprhrase+... <em style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">enough already?</em>
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+(Where "+" denotes string concatenation.) Therein lies the namesake iteration. The desired length in octets of the final string is the <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">count</span>, an adjustable parameter.
+</div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+This section demonstrates Iterated and Salted S2K for two cases, first when the hash length suffices for the key length, and second when the hash length falls short of the key length. Option "<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-mode 3</span>" tells
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+to use this variant, and option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-count</span>
+sets the count. The passphrase is "abc", and the count is 1,408. Thus the salted passphrase appears 128 times: (8+3)×128 = 1,408. </div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length Suffices for Key Length</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+Initial steps follow Salted S2K, but with tweaked options: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 3 --s2k-count 1408 --symmetric hello.txt
+-&#62; gpg2 --homedir alice --quiet --show-session-key --list-packets hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '7:2184EF5861A441ADD29DFB31061F166A'</strong>
+# off=0 ctb=8c tag=3 hlen=2 plen=13
+:symkey enc packet: version 4, cipher 7, s2k 3, hash 2
+<strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">salt 333DAA0B9B1899DD, count 1408</strong> (6)
+⋮
+-&#62; passphrase='abc'
+-&#62; salt='\x33\x3D\xAA\x0B\x9B\x18\x99\xDD'
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+For convenience, variable <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$iterate</var>
+(as a noun) stores the salted passphrase to be repeated: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; iterate="$salt$passphrase"
+-&#62; echo -n -e $iterate | hexdump --canonical
+00000000  33 3d aa 0b 9b 18 99 dd  61 62 63                 |3=......abc|
+0000000b
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The input string for the hasher comprises 128 copies of <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$iterate</var>, exactly, for a total size of the desired 1,408 octets. A little Bash legerdemain does the xeroxing (see
+<a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/crypto-gnupg-s2k.html%23legerdemain" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">following note</a>):
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf -v input "$iterate%.0s" {1..128}
+-&#62; echo -n -e $input | wc --bytes
+1408
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+To examine <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+in 11-octet chunks, it's easier to use <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">od</span>
+rather than <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">hexdump</span>
+(but see <a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/crypto-gnupg-s2k.html%23hexdump" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">following note</a>):
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e $input | od --address-radix x --format x1z --width=11
+000000 33 3d aa 0b 9b 18 99 dd 61 62 63  &#62;3=......abc&#60;
+*
+000580
+-&#62; echo 'ibase=16; 0580' | bc
+1408
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The upshot is that <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+iterates the salted passphrase according to plan. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+Iterated and Salted S2K now resumes to the ways of its cousins by hashing <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+for its first 32 quartets (128 bits): </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "%.32s\n" "$(echo -n $input | sha1sum | tr a-f A-F)"
+2184EF5861A441ADD29DFB31061F166A
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+This string matches the session key reported above. </div>
+
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+The assignment to <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+above takes advantage of Bash's <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+coupled with <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">brace expansion</span>
+to repeatedly concatenate <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$iterate</var>
+with itself. </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf -v input "$iterate%.0s" {1..128}
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The expression <code style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">{1..128}</code>
+enumerates the integers 1, 2, …, 128 into a space-separated sequence, which becomes the argument list handed off to <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>. For example, these two expressions are equivalent:
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "&#60;%s&#62;" {1..3}; echo
+&#60;1&#62;&#60;2&#62;&#60;3&#62;
+-&#62; printf "&#60;%s&#62;" 1 2 3; echo
+&#60;1&#62;&#60;2&#62;&#60;3&#62;
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The format "%.0s" for <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+then consumes its argument without a trace: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf "&#60;%.0s&#62;" {1..3}; echo
+&#60;&#62;&#60;&#62;&#60;&#62;
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The result is a multi-link chain of the literal string in the format; i.e., "&#60;&#62;" here and <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$iterate</var>
+above. Finally, option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">-v</span>
+redirects the output into the named variable: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf -v chain "&#60;%.0s&#62;" {1..3}
+-&#62; echo $chain
+&#60;&#62;&#60;&#62;&#60;&#62;
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Nifty. </div>
+</div>
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+Nifty but not foolproof. Using <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+this way trips up if a grain of the salt should happen to be the zero octet, which <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">printf</span>
+interprets as a string terminator. For example, this sequence works as expected: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; salt='\x33\x3D\xAA\x0B\x9B\x18\x99\xDD'
+-&#62; iterate="$salt$passphrase"
+-&#62; printf -v input "$iterate%.0s" {1..2} 
+-&#62; echo -n  $input | od --address-radix x --format x1z --width=11
+000000 33 3d aa 0b 9b 18 99 dd 61 62 63  &#62;3=......abc&#60;
+*
+000016
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Now, change the salt's fourth octet, say, to zero and repeat: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; salt='\x33\x3D\xAA<strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">\x00</strong>\x9B\x18\x99\xDD'
+-&#62; iterate="$salt$passphrase"
+-&#62; printf -v input "$iterate%.0s" {1..2} 
+-&#62; echo -n -e $input | od --address-radix x --format x1z --width=11
+000000 33 3d aa                          &#62;3=.&#60;
+000003
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+But for demonstration purposes, this handy construct is fine as long as the salt is kosher. </div>
+</div>
+
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+In the absence of direction from option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-count</span>,
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+asks its colleague <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+what count to use for Iterated and Salted S2K. By default, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+returns a count that requires about 100 ms to hash. It calculates this <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">calibrated count</span>
+using rough-cut plug-and-chug. You can query <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+directly for its calibrated count: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg-connect-agent --homedir alice 'GETINFO s2k_count_cal' /bye
+D 33722368
+OK
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+(32 MiB) You can instead set a count with option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-count</span>
+in <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent.conf</span>, called a
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">standard count</span>
+(in source code, anyway): </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; cat alice/gpg-agent.conf
+s2k-count 65011712
+-&#62; gpg-connect-agent --homedir alice 'GETINFO s2k_count' /bye
+D 65011712
+OK
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+This count, 62 MiB, is the largest allowed by OpenPGP. A standard count takes precedence over a calibrated count. In either case, however, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+insists on a minimum of 64 KiB (65,536 octets). You can also query <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+to see how long your computer takes to hash a string with the count in effect. Here and now for a string size of 62 MiB: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg-connect-agent --homedir alice 'GETINFO s2k_time' /bye
+D 199
+OK
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+That's 199 ms. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+There's one quirk to note: If <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+sees option "<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-count 1024</span>", it consults
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+for the count. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+See man pages for <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2<span style="">(', attr(data-sec), ')</span></span>
+and <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent<span style="">(', attr(data-sec), ')</span></span>. Some of the details above were gleaned from the
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+source code for several functions in file <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">agent/protect.c</span>; search for "_s2k" in function names.
+</div>
+</div>
+
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+By default, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+looks for its configuration file <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent.conf</span>
+in <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$HOME/gnupg</span>
+but happily accepts redirection with option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--homedir</span>.
+</div>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+For calibrating the count, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg-agent</span>
+successively tries Iterated and Salted S2K with increasing count until computation requires 100 ms. It starts with a count of 64 KiB and then doubles the count on each trial. For this it uses SHA-1; that's coded in. </div>
+
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="margin-right:0.1em;">🞜</span>
+As it turns out, the iteration count is restricted to 256 values; the <a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/crypto-gnupg-s2k.html%23code" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">arcane details</a>
+are given at the end of this section. The preceding count of 1,408 is agreeably divisible by 11, the size of the salt-passphrase iterate (8+3). Divisibility here just tidies the initial presentation, but the algorithm does not care. </div>
+
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+When the count is not divisible by the length of the salt-passphrase iterate, the last iterate is truncated as needed. Here's a recapitulation of the previous example when the count is 1,152 (11×104+8 or 11×105-3). In building the input string, this example initially overshoots its mark by cloning <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$iterate</var>
+105 times to 1,155 octets. It then drops the last three octets to curb its excess. </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 3 --s2k-count 1152 --symmetric hello.txt
+-&#62; gpg2 --homedir alice --quiet --show-session-key --list-packets hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '7:C6C5DC945E490FB73199D4F3C935C495'</strong>
+# off=0 ctb=8c tag=3 hlen=2 plen=13
+:symkey enc packet: version 4, cipher 7, s2k 3, hash 2
+	<strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">salt C5ACB0FDE783F750, count 1152</strong> (1)
+⋮
+-&#62; passphrase='abc'
+-&#62; salt='\xC5\xAC\xB0\xFD\xE7\x83\xF7\x50'
+-&#62; iterate="$salt$passphrase"
+-&#62; printf -v input0 "$iterate%.0s" {1..105}
+-&#62; echo -n -e $input0 | wc --bytes
+1155
+-&#62; printf -v input "%.1152s" $input0
+-&#62; echo -n -e $input | wc --bytes
+1152
+-&#62; printf "%.32s\n" "$(echo -n -e $input | sha1sum | tr a-f A-F)"
+C6C5DC945E490FB73199D4F3C935C495
+</pre>
+</div>
+
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+Coaxing <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">hexdump</span>
+to format its display of <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input</var>
+into 11-byte chunks takes an esoteric incantation: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e $input | hexdump --format '"%06_ax " 11/1 "%02x " " |" 11/1 "%_p"  "|\n" "%06_Ax\n"' 
+000000 33 3d aa 0b 9b 18 99 dd 61 62 63 |3=......abc|
+*
+000580
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+That's more or less what option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--canonical</span>
+does with 16-byte chunks, but the 11-byte pattern of the iterated string gets out of whack: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; echo -n -e $input | hexdump --canonical --length 44
+00000000  33 3d aa 0b 9b 18 99 dd  61 62 63 33 3d aa 0b 9b  |3=......abc3=...|
+00000010  18 99 dd 61 62 63 33 3d  aa 0b 9b 18 99 dd 61 62  |...abc3=......ab|
+00000020  63 33 3d aa 0b 9b 18 99  dd 61 62 63              |c3=......abc|
+0000002c
+</pre>
+</div>
+
+<h3 style="text-align:left;vertical-align:baseline;font-family:Georgia, Trebuchet, Verdana, sans-serif;font-weight:bold;font-size:100%;counter-increment:h3 1;border-width:0px;border-style:none;margin:1em 0px 0.5em;padding:2px 0px 0px;border-color:white">Hash Length Falls Short of Key Length</h3>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+This example runs through Iterated and Salted S2K for two rounds of hashing by combining AES-192 for encryption with SHA-1 for hashing. The session key needs 192 bits. The first round determines the initial 160 bits, and the second round provides the remaining 32 bits. </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; gpg2 --homedir alice --quiet --yes --s2k-mode 3 --s2k-count 1408 --cipher-algo AES192 --symmetric hello.txt
+-&#62; gpg2 --homedir alice --quiet --show-session-key --list-packets hello.txt.gpg
+gpg2 --homedir alice --quiet --show-session-key --list-packets hello.txt.gpg
+gpg: <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">session key: '8:24E7008FED286D104C9EA95023893D30929069A051FA093F'</strong>
+# off=0 ctb=8c tag=3 hlen=2 plen=13
+:symkey enc packet: version 4, cipher 8, s2k 3, hash 2
+        <strong style="text-align:left;font-size:100%;vertical-align:baseline;font-weight:bold;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">salt 8578D944258F3ABD, count 1408</strong> (6)
+⋮
+-&#62; passphrase='abc'
+-&#62; salt='\x85\x78\xD9\x44\x25\x8F\x3A\xBD'
+-&#62; iterate="$salt$passphrase"
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The first input, <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input1</var>, is constructed without adjustment for round:
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; printf -v input1 "$iterate%.0s" {1..128}
+-&#62; echo -n -e $input1 | od --address-radix x --format x1z --width=11
+000000 85 78 d9 44 25 8f 3a bd 61 62 63  &#62;.x.D%.:.abc&#60;
+*
+000580
+-&#62; echo "ibase=16; 580" | bc
+1408
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The second input, <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input2</var>, simply prepends the zero octet to
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input1</var>. This prefix does not figure in counting octets of the input string, and that's why
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input1</var>
+is taken without adjustment: </div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; input2="\x00$input1"
+-&#62; echo -n -e $input2 | od --address-radix x --format x1z --read-bytes=12
+000000 00 85 78 d9 44 25 8f 3a bd 61 62 63              &#62;..x.D%.:.abc&#60;
+00000c
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+Finally, both inputs are hashed into <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$hash1</var>
+and <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$hash2</var>, respectively. The session key then concatenates all 40 quartets of
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$hash1</var>
+and the first 8 quartets of <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$hash2</var>:
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">-&#62; hash1=$(echo -n -e $input1 | sha1sum | cut --delimiter=' ' --fields=1)
+-&#62; hash2=$(echo -n -e $input2 | sha1sum | cut --delimiter=' ' --fields=1)
+-&#62; printf "%40s%.8s\n" $hash1 $hash2 | tr a-f A-F
+24E7008FED286D104C9EA95023893D30929069A051FA093F
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+The <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">cut</span>
+pipe just lops off the pesky hyphen that <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">sha1sum</span>
+appends to its output. </div>
+
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+Should a third round be necessary, the prefix of two zero octets would not figure in counting octets; <var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$input3</var>
+would be <code style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">"\x00\x00$input1"</code>
+(or <code style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">"\x00$input2"</code>). And so on.
+</div>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+If S2K receives a count less than the length of the salted passphrase, it silently resets the count to the latter length. </div>
+<div style="text-align:left;font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 1.25em 0px 0px; padding: 0px; border-color: white; ">
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; "><span style="letter-spacing:-0.3em;margin-right:0.4em;">🞜🞜</span>
+OpenPGP encodes the count into a single octet using an obtuse formula that only a bit-slinging programmer would love, or at least tolerate. This formula leads to counts in the range 1 KiB to 62 MiB (1,024 octets to 65,011,712 octets). Not all integers in this range can be encoded, however. To accommodate, <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+silently replaces an unobtainable value given to option <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">--s2k-count</span>
+by rounding up to the next obtainable count. For example, code 0 yields 1,024 and code 1 yields 1,088. Thus <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">gpg2</span>
+pushes any requested count between 1,025 and 1,087 up to 1,088 octets. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+In fact, there are only 256 admissible counts, each corresponding to one of 2<span style="vertical-align:super;font-size:66%;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">8</span>
+possible codes. Here is the relationship between a valid count (<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$count</var>) and its encoding (<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$code</var>) expressed in Perl:
+</div>
+<pre style="text-align:left;font-size:100%;vertical-align:baseline;font-family:'Courier New', Courier, monospace;overflow-x:auto;overflow-y:auto;text-overflow:ellipsis;border-width: 0px; border-style: none; margin: 0.5ex 2em; padding: 0px; border-color: white; ">    $count = ((16 + ($code &#38; 15)) &#60;&#60; (($code &#62;&#62; 4) + 6));
+</pre>
+<div style="font-size:100%;vertical-align:baseline;text-align:left;text-indent:0px;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+[<a href="http://archive.today/o/kKtf9/https://tools.ietf.org/html/rfc4880%23section-3.7.1.3" title="RFC 4880: OpenPGP" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">§3.7.1.3</a>] Setting
+<var style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">$code</var>
+successively to 0, 1, 2, …, 254, 255 lists the valid counts; e.g., 1,024; 1,088; 1,152; …; 62,914,560; 65,011,712. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+The count of 1,408 in the preceding examples is the first count evenly divisible by 11 (1,408÷11=128), the length of the salt-passphrase duo (8+3). That's why the examples choose it. Its code is 6. </div>
+<div style="font-size:100%;vertical-align:baseline;text-indent:1em;text-align:left;border-width: 0px; border-style: none; margin: 0.5em 0px 0px; padding: 0px; border-color: white; ">
+An OpenPGP file stores only the code; the octet is part of a <span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">String-to-Key (S2K) Specifier</span>
+[<a href="http://archive.today/o/kKtf9/https://tools.ietf.org/html/rfc4880%23section-3.7.1.3" title="RFC 4880: OpenPGP" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">§3.7.1.3</a>] tucked inside a
+<span style="font-size:100%;vertical-align:baseline;font-style:italic;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Symmetric-Key Encrypted Session Key Packet</span>
+[<a href="http://archive.today/o/kKtf9/https://tools.ietf.org/html/rfc4880%23section-5.3" title="RFC 4880: OpenPGP" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">§5.3</a>]. GnuPG delegates S2K to a
+<span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">libgcrypt</span>
+function that requires the count and knows nothing of codes—function <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">openpgp_s2k</span>
+in file <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">cipher/kdf.c</span>.
+<a href="http://archive.today/o/kKtf9/https://www.gnupg.org/download/index.html" title="GnuPG source code" style="font-size:100%;vertical-align:baseline;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">GnuPG</a>
+function <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">encode_s2k_iterations</span>
+in file <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">g10/passphrase.c</span>
+determines the S2K code for a requested count. GnuPG macro <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">S2K_DECODE_COUNT</span>
+in file <span style="font-size:100%;vertical-align:baseline;font-family:'courier new', monospace;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">agent/protect.c</span>
+returns the count for a given code; it implements the Perl expression above. </div>
+</div>
+</section>
+
+<footer style="text-align:left;font-size:100%;vertical-align:baseline;clear:both;white-space:nowrap;border-width: medium 0px 0px; border-style: double none none; margin: 1ex 0px 0px; padding: 1ex 0px 2ex; border-color: navy white white; ">
+<nav style="text-align:left;font-size:100%;vertical-align:baseline;display:inline;float:left;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">
+<a href="http://archive.today/o/kKtf9/https://rays-notebook.info/home.html" title="Return to Notebook homepage." style="text-align:left;font-size:100%;vertical-align:baseline;color:navy;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; ">Ray's Notebook</a>
+<a href="http://archive.today/o/kKtf9/https://rays-notebook.info/computing/home.html" title="Return to homepage." style="text-align:left;font-size:100%;vertical-align:baseline;color:navy;text-decoration:none;border-width: 0px; border-style: none; margin: 0px; padding: 0px; border-color: white; "><span style=""> § </span>Computing</a>
+</nav>
+</footer>
+
+
+
+
+
+</div></div></div></body></html>

@@ -1,0 +1,1 @@
+This is the cleartext file that will be within the 7zip folder.

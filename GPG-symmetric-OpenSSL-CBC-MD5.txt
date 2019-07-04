@@ -1,0 +1,82 @@
+echo "This is the cleartext file that will be within the 7zip folder." > cleartext.txt
+
+7z a archivedcleartext.7z cleartext.txt 
+
+gpg --symmetric --s2k-cipher-algo AES256 --s2k-digest-algo SHA1 --s2k-mode 3 --s2k-count 10000 archivedcleartext.7z
+
+'test' is the password to enter
+
+pgpdump archivedcleartext.7z.gpg 
+Old: Symmetric-Key Encrypted Session Key Packet(tag 3)(13 bytes)
+	New version(4)
+	Sym alg - AES with 256-bit key(sym 9)
+	Iterated and salted string-to-key(s2k 3):
+		Hash alg - SHA1(hash 2)
+		Salt - 4a 84 b6 21 1f fc 77 9b 
+		Count - 10240(coded count 52)
+New: Symmetrically Encrypted and MDC Packet(tag 18)(247 bytes)
+	Ver 1
+	Encrypted data [sym alg is specified in sym-key encrypted session key]
+		(plain text + MDC SHA1(20 bytes))
+
+gpg --list-packets archivedcleartext.7z.gpg 
+gpg: AES256 encrypted data
+gpg: encrypted with 1 passphrase
+# off=0 ctb=8c tag=3 hlen=2 plen=13
+:symkey enc packet: version 4, cipher 9, s2k 3, hash 2
+	salt 4A84B6211FFC779B, count 10240 (52)
+# off=15 ctb=d2 tag=18 hlen=3 plen=247 new-ctb
+:encrypted data packet:
+	length: 247
+	mdc_method: 2
+# off=37 ctb=a3 tag=8 hlen=1 plen=0 indeterminate
+:compressed packet: algo=1
+# off=39 ctb=ac tag=11 hlen=2 plen=223
+:literal data packet:
+	mode b (62), created 1562250274, name="archivedcleartext.7z",
+	raw data: 197 bytes
+
+gpg --show-session-key archivedcleartext.7z.gpg 
+gpg: WARNING: no command supplied.  Trying to guess what you mean ...
+gpg: AES256 encrypted data
+gpg: encrypted with 1 passphrase
+gpg: session key: '9:ED72BFC9290576788991E9A0819002773929E6595C0D39FBAC3B929863970EBA'
+
+
+gpg --override-session-key 9:ED72BFC929E9A0819002773929E6595C0D39FBAC3B929863970EBA < archivedcleartext.7z.gpg > outputfile
+gpg: WARNING: no command supplied.  Trying to guess what you mean ...
+gpg: AES256 encrypted data
+gpg: encrypted with 1 passphrase
+
+file -b outputfile 
+7-zip archive data, version 0.4
+
+It doesn’t work if you change the prefixed number in this case ‘9:’
+
+gpg --override-session-key 1:ED72BFC9290576788991E9A0819002773929E6595C0D39FBAC3B929863970EBA < archivedcleartext.7z.gpg > outputfile2
+gpg: WARNING: no command supplied.  Trying to guess what you mean ...
+gpg: AES256 encrypted data
+gpg: encrypted with 1 passphrase
+Assertion failed: (keylen == 16), function do_setkey, file idea.c, line 253.
+Abort trap: 6
+
+OPENSSL
+
+openssl enc -aes-256-cbc -md md5 -pass pass:"test" -p -in archivedcleartext.7z -out archivedcleartext.7z.aes 
+salt=0F1E1A1158AF70ED
+key=8BBDFE671448FFBBA127DB71763D78AEF9A3BB55CDDB242544429DC062DDB38D
+iv =E739E753DA3AD7977E936A7919C4FD34
+
+openssl enc -aes-256-cbc -d -md md5 -p -in archivedcleartext.7z.aes -out outtest
+enter aes-256-cbc decryption password:
+
+'test' is the password to enter
+
+salt=0F1E1A1158AF70ED
+key=8BBDFE671448FFBBA127DB71763D78AEF9A3BB55CDDB242544429DC062DDB38D
+iv =E739E753DA3AD7977E936A7919C4FD34
+
+file -b outtest 
+7-zip archive data, version 0.4
+
+
