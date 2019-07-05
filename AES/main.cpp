@@ -166,19 +166,15 @@ void DecryptOpenSSLCBC(string cipherHex, string keyHex, string ivHex){
     bytes cipherBytes = HexToBytes(cipherHex);
     bytes keyBytes = HexToBytes(keyHex);
     bytes ivBytes = HexToBytes(ivHex);
-    int saltLength = 16;
+     int saltLength = 16;
     //unsigned char *out = aes.EncryptCBC(plain, 16 * sizeof(unsigned char), key, iv, len);
     unsigned char *out[cipherBytes.size()-saltLength];
-    cout<<cipherBytes.size()<<endl;
+    //cout<<cipherBytes.size()<<endl;
     unsigned char *key[keyBytes.size()];
     unsigned char *iv[ivBytes.size()];
     //skip "Salted__" + 8 bytes*/
-    for(int i = 0;i<cipherBytes.size()-saltLength;i++){
+    for(int i = 0;i<cipherBytes.size()-saltLength;i++)
         out[i] = &cipherBytes[i+saltLength];
-        cout<<ByteToStr(cipherBytes[i+saltLength])<<" ";
-    }
-    cout<<endl;
-
     for(int i = 0;i<keyBytes.size();i++)
         key[i] = &keyBytes[i];
     for(int i = 0;i<ivBytes.size();i++)
@@ -186,37 +182,76 @@ void DecryptOpenSSLCBC(string cipherHex, string keyHex, string ivHex){
     
     AES aes(256);
     unsigned int len;
-
     unsigned char *innew = aes.DecryptCBC(out[0], 16 * sizeof(unsigned char), key[0], iv[0], len);
     int i = 0;
     while(i<len){
-        //cout<<&innew+i<<endl;
         cout<<ByteToStr(*(innew+i))<<" ";
         i++;
     }cout<<endl;
-    //assert(!memcmp(innew, plain, 16 * sizeof(unsigned char)));
 
-    cout << "Decrypted" << endl;
-    //delete[] out;
+    cout << "Decrypted CBC" << endl;
+    delete[] innew;
+}
+
+void DecryptGPGCFB(string cipherHex, string keyHex, int s){
+    bytes cipherBytes = HexToBytes(cipherHex);
+    bytes keyBytes = HexToBytes(keyHex);
+    /*
+    gpg --list-packets archivedcleartext.7z.gpg 
+    gpg: AES256 encrypted data
+    gpg: encrypted with 1 passphrase
+    # off=0 ctb=8c tag=3 hlen=2 plen=13
+    :symkey enc packet: version 4, cipher 9, s2k 3, hash 2
+        salt 4A84B6211FFC779B, count 10240 (52)
+    # off=15 ctb=d2 tag=18 hlen=3 plen=247 new-ctb      16 No
+    :encrypted data packet:
+        length: 247
+        mdc_method: 2
+    # off=37 ctb=a3 tag=8 hlen=1 plen=0 indeterminate   38 No
+    :compressed packet: algo=1
+    # off=39 ctb=ac tag=11 hlen=2 plen=223              40 No
+    :literal data packet:
+        mode b (62), created 1562250274, name="archivedcleartext.7z",
+        raw data: 197 bytes                             247 - 197 = 50 + 16
+
+     */
+    int skipBytes = s;
+    unsigned char *out[cipherBytes.size()-skipBytes];
+    unsigned char *key[keyBytes.size()];
+    //skip "Salted__" + 8 bytes*/
+    for(int i = 0;i<cipherBytes.size()-skipBytes;i++)
+        out[i] = &cipherBytes[i+skipBytes];
+    for(int i = 0;i<keyBytes.size();i++)
+        key[i] = &keyBytes[i];
+    
+    AES aes(256);
+    unsigned int len;
+    unsigned char iv[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+    unsigned char *innew = aes.DecryptCFB(out[0], 16 * sizeof(unsigned char), key[0], iv, len);
+    int i = 0;
+    cout<<"     : ";
+    while(i<len){
+        cout<<ByteToStr(*(innew+i))<<" ";
+        i++;
+    }cout<<endl;
+
+    cout << "Decrypted   CFB" << endl;
     delete[] innew;
 }
 
 int main()
 {
-  Test128();
-  Test192();
-  Test256();
-  TestECB();
-  TestCBC();
-  TestCFB();
-    bytes b = HexToBytes("E8 48 D8 FF FF 8B 0D");
-    //for(int i = 0;i<b.size();i++)
-    //    cout<<BytesToStr(b)<<endl;
-
-    cout<<BytesToStr(b)<<endl;//("E8 48 D8 FF FF 8B 0D"))<<endl;
-    //cout << hexStr(HexToBytes("E848 D8 FF FF8B 0D"))<<endl;
+    Test128();
+    Test192();
+    Test256();
+    TestECB();
+    TestCBC();
+    TestCFB();
     DecryptOpenSSLCBC(cipherCBCHex,cbcKeyHex,cbcIVHex);
-    //DecryptGPGCFB(cipherCBCHex,cbcKeyHex,cbcIVHex);*/
+    for(int i = 0; i < 100; i++){
+        cout<<i;
+        DecryptGPGCFB(cipherCFBHex,cfbKeyHex, i);
+    }
   return 0;
 }
 
