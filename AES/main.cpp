@@ -112,6 +112,38 @@ void TestCFB()
 string clearHex = "377abcaf271c00044eff88984300000000000000620000000000000066975547e0003f003b5d002a1a0927641c878f5fb2ae3a9af8f38cccac022301129445b5bdc218fa7dcf97fa0c41a115ec119c99e0d2e3045a5a6fec0a5b1c4c4ad694b30000000104060001094300070b010001212101000c4000080a01202c403400000501190c000000000000000000000000111d0063006c0065006100720074006500780074002e007400780074000000140a010080173d827232d501150601002080a4810000";
 string cipherCBCHex = "53616c7465645f5f0f1e1a1158af70edc9523a2484d2cd77350ee59c90004b89165e523723304567d740a356822d2618f8b24e697dd671302c41c1ecc1d24b25e907c8ed8235fe731f337adebfda5b9ff86c47450ffd0251cedf2088ad9770e81fe349de55f8d1c6fa40cc508005695a260017cbc0784399b8547886ff2d82eee89d2700c05ddcadb6cdba9213a274d929306bae455e28708ecb601845ef0c67df1e2bd3b63b6040b76b032cd70d879d58c1c3355d1271ba75f1eb5b4663c0ee3fd6ece8a1a74f85c608648d1f8b1245df3db7130909ac73fa820d651c4790e5";
 string cipherCFBHex = "8c0d040903024a84b6211ffc779b34d2c03701161ccc1df35c4fffae3a9f66d43ddda2d74ac6fe1d9c69da03f4f563ae21413e22e3cbddfc9f381f4e45fe92eaa8a4fec74690580ea06849fef68921c6c8ba656582afd1e7cc6bd34509ae2a92170fefb5a2f91dd22f9e433ea2f9f8cd5de2b2ae25408d83a515d72f8496991d0bacbe23d1ed835ae0a8f7d15711040d54fa738f1f881900dbc2b4ca7685ff1b32e4eddbe0c2814e42363d137e1f931000f773a17e4e3a2d0775d3239cb496acef2e121e50f7b5aed4322af93fc40e79454a9ee424747f32351a93972b816bdd55513dd63f630ea8ede89654e73d2aec406e8290f8f6562ba7b823b80dee73516f3b2e047a5eaecef7";
+// string cipherCFBHex = "8c 0d 04 09 03 02 4a84b6211ffc779 b34d2c03701161ccc1df35c4fffae3a9f66d43ddda2d74ac6fe1d9c69da03f4f563ae21413e22e3cbddfc9f381f4e45fe92eaa8a4fec74690580ea06849fef68921c6c8ba656582afd1e7cc6bd34509ae2a92170fefb5a2f91dd22f9e433ea2f9f8cd5de2b2ae25408d83a515d72f8496991d0bacbe23d1ed835ae0a8f7d15711040d54fa738f1f881900dbc2b4ca7685ff1b32e4eddbe0c2814e42363d137e1f931000f773a17e4e3a2d0775d3239cb496acef2e121e50f7b5aed4322af93fc40e79454a9ee424747f32351a93972b816bdd55513dd63f630ea8ede89654e73d2aec406e8290f8f6562ba7b823b80dee73516f3b2e047a5eaecef7";
+// Salt bytes: [6:14]
+/*  gpg --list-packets archivedcleartext.7z.gpg 
+    gpg: AES256 encrypted data
+    gpg: encrypted with 1 passphrase
+    # off=0 ctb=8c tag=3 hlen=2 plen=13
+    :symkey enc packet: version 4, cipher 9, s2k 3, hash 2
+        salt 4A84B6211FFC779B, count 10240 (52)
+    # off=15 ctb=d2 tag=18 hlen=3 plen=247 new-ctb
+    :encrypted data packet:
+        length: 247
+        mdc_method: 2
+    # off=37 ctb=a3 tag=8 hlen=1 plen=0 indeterminate
+    :compressed packet: algo=1
+    # off=39 ctb=ac tag=11 hlen=2 plen=223           
+    :literal data packet:
+        mode b (62), created 1562250274, name="archivedcleartext.7z",
+        raw data: 197 bytes
+     */
+
+/*Old: Symmetric-Key Encrypted Session Key Packet(tag 3)(13 bytes)
+        New version(4)
+        Sym alg - AES with 256-bit key(sym 9)
+        Iterated and salted string-to-key(s2k 3):
+                Hash alg - SHA1(hash 2)
+                Salt - 4a 84 b6 21 1f fc 77 9b 
+                Count - 10240(coded count 52)
+New: Symmetrically Encrypted and MDC Packet(tag 18)(247 bytes)
+        Ver 1
+        Encrypted data [sym alg is specified in sym-key encrypted session key]
+                (plain text + MDC SHA1(20 bytes))
+                 */
 
 string cbcKeyHex = "8BBDFE671448FFBBA127DB71763D78AEF9A3BB55CDDB242544429DC062DDB38D";
 string cbcIVHex = "E739E753DA3AD7977E936A7919C4FD34";
@@ -127,7 +159,6 @@ string BytesToStr(const bytes &in)
        oss << hex << setw(2) << setfill('0') << showbase << static_cast<int>(*from);
     return oss.str();
 }
-
 
 string ByteToStr(const uint8_t &byte)
 {
@@ -196,47 +227,44 @@ void DecryptOpenSSLCBC(string cipherHex, string keyHex, string ivHex){
 void DecryptGPGCFB(string cipherHex, string keyHex, int s){
     bytes cipherBytes = HexToBytes(cipherHex);
     bytes keyBytes = HexToBytes(keyHex);
-    /*
-    gpg --list-packets archivedcleartext.7z.gpg 
-    gpg: AES256 encrypted data
-    gpg: encrypted with 1 passphrase
-    # off=0 ctb=8c tag=3 hlen=2 plen=13
-    :symkey enc packet: version 4, cipher 9, s2k 3, hash 2
-        salt 4A84B6211FFC779B, count 10240 (52)
-    # off=15 ctb=d2 tag=18 hlen=3 plen=247 new-ctb      16 No
-    :encrypted data packet:
-        length: 247
-        mdc_method: 2
-    # off=37 ctb=a3 tag=8 hlen=1 plen=0 indeterminate   38 No
-    :compressed packet: algo=1
-    # off=39 ctb=ac tag=11 hlen=2 plen=223              40 No
-    :literal data packet:
-        mode b (62), created 1562250274, name="archivedcleartext.7z",
-        raw data: 197 bytes                             247 - 197 = 50 + 16
-
-     */
-    int skipBytes = s;
-    unsigned char *out[cipherBytes.size()-skipBytes];
-    unsigned char *key[keyBytes.size()];
-    //skip "Salted__" + 8 bytes*/
-    for(int i = 0;i<cipherBytes.size()-skipBytes;i++)
-        out[i] = &cipherBytes[i+skipBytes];
-    for(int i = 0;i<keyBytes.size();i++)
-        key[i] = &keyBytes[i];
     
+    int skipBytes = s;
+    unsigned char *out = new unsigned char[cipherBytes.size()-skipBytes];
+    unsigned char *key = new unsigned char[keyBytes.size()];
+    //skip "Salted__" + 8 bytes*/
+    for(int i = 0;i<cipherBytes.size()-skipBytes;i++){
+        out[i] = cipherBytes[i+skipBytes];
+        //cout<<"byte "<<cipherBytes[i+skipBytes];
+    }
+    for(int i = 0;i<keyBytes.size();i++)
+        key[i] = keyBytes[i];
+    //cout<<"Got here"<<endl;
     AES aes(256);
-    unsigned int len;
-    unsigned char iv[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-    unsigned char *innew = aes.DecryptCFB(out[0], 16 * sizeof(unsigned char), key[0], iv, len);
+    //unsigned int len;
+    //unsigned char iv[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+
+    //cout<<"Got here 2 "<<strlen((char*)out)<<endl;//cipherBytes.size()-skipBytes<<endl;
+    string temp = aes.OpenPGP_CFB_decrypt(18,reinterpret_cast<char*>((unsigned char*)out),key);
+    if(temp==""){
+        //std::cout<<"Error: Bad OpenPGP_CFB check value."<<std::endl;
+        delete[] out;
+        delete[] key;
+        return;
+    }
+    //else cout<<"Success??"<<endl;
+    unsigned char *innew = reinterpret_cast<unsigned char*>(const_cast<char*>(temp.c_str()));
     int i = 0;
-    cout<<"     : ";
-    while(i<len){
+    //cout<<"     : ";
+    while(i<temp.size()){
         cout<<ByteToStr(*(innew+i))<<" ";
         i++;
     }cout<<endl;
 
-    cout << "Decrypted   CFB" << endl;
+    //cout << "Decrypted   CFB" << endl;
+    delete[] out;
+    delete[] key;
     delete[] innew;
+    cout<<" got here hmmm "<<endl;
 }
 
 int main()
@@ -248,8 +276,22 @@ int main()
     TestCBC();
     TestCFB();
     DecryptOpenSSLCBC(cipherCBCHex,cbcKeyHex,cbcIVHex);
+    //AES aes(256);
+    //cout<<"blockBytesLen: "<<aes.blockBytesLen<<endl;   //  blockBytesLen: 16
+    //const std::size_t BS = aes.blockBytesLen >> 3;
+    //cout<<"BS: "<<BS<<endl; //  BS: 2
+
+    std::size_t BS = 128 >> 3;
+    cout<<"BS: "<<BS<<endl; //  BS: 16 bytes e.g. 128 bits
+    
+//    string data(reinterpret_cast<char*>((unsigned char*)"AHSHSDAJS ASDHJASDHKASAHSHSDAJS ASDHJASDHKASAHSHSDAJS ASDHJASDHKASAHSHSDAJS ASDHJASDHKAS"));
+//    unsigned char* uchrs = reinterpret_cast<unsigned char*>(const_cast<char*>(data.c_str()));
+
+    //cout<<data<<endl;
+    //cout<<data.c_str()<<endl;
+    //cout<<uchrs<<endl;
     for(int i = 0; i < 100; i++){
-        cout<<i;
+        cout<<i<<endl;
         DecryptGPGCFB(cipherCFBHex,cfbKeyHex, i);
     }
   return 0;

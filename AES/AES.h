@@ -2,7 +2,7 @@
 #define _AES_H_
 
 #include<cstring>
-
+#include<string>
 using namespace std;
 
 class AES
@@ -64,12 +64,15 @@ public:
   unsigned char *EncryptCBC(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen);
 
   unsigned char *DecryptCBC(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen);
-
-    unsigned char *EncryptCFB(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen);
+  
+  unsigned char *EncryptCFB(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen);
 
   unsigned char *DecryptCFB(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen);
 
+  unsigned char *OpenPGP_EncryptCFB(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen, string prefix, bool useMDC);
 
+  unsigned char *OpenPGP_DecryptCFB(unsigned char in[], unsigned int inLen, unsigned  char key[], unsigned char * iv, unsigned int &outLen, string prefix);
+    string OpenPGP_CFB_decrypt(const uint8_t packet, const std::string & data, unsigned char * key);
 };
 
 const unsigned char sbox[16][16] = {
